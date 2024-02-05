@@ -1,6 +1,6 @@
 from collections import UserDict
 import datetime
-
+import json
 
 class Field:
     def __init__(self, value):
@@ -17,6 +17,9 @@ class Phone(Field):
     def __init__(self, value):
         super().__init__(value)
         self.validate()
+
+    def __str__(self):
+        return self.value
 
     def validate(self):
         if not isinstance(self.value, str) or not self.value.isdigit() or len(self.value) != 10:
@@ -65,6 +68,7 @@ class Record:
         self.name = Field(name)
         self.phones = []
         self.birthday = birthday
+
 
     def add_phone(self, phone):
         self.phones.append(Phone(phone))
@@ -122,7 +126,50 @@ class Record:
 class AddressBook(UserDict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.page_size = 5
+        self.page_size = 10
+
+    def save_to_file(self, filename):
+        with open(filename, 'w') as file:
+            json.dump(self.data, file, indent=2, default=self.json_default)
+
+    def load_from_file(self, filename):
+        try:
+            with open(filename, 'r') as file:
+                data = json.load(file)
+                for name, record_data in data.items():
+                    record = Record(name)
+                    for phone in record_data["phones"]:
+                        record.add_phone(phone)
+                    record.birthday = record_data["birthday"]
+                    self.data[name] = record
+        except FileNotFoundError:
+            print(f"File {filename} not found. Creating a new address book.")
+            self.data = {}
+
+    def json_default(self, obj):
+        if isinstance(obj, Record):
+            return {
+                "name": obj.name.value,
+                "phones": [phone.value for phone in obj.phones],
+                "birthday": str(obj.birthday) if obj.birthday else None
+            }
+        elif isinstance(obj, Field):
+            return obj.value
+        return None
+
+    def search_contact(self, query):
+        results = []
+        for record in self.data.values():
+            # Check if the query matches any part of the phone numbers
+            for phone in record.phones:
+                if query in phone.value:
+                    results.append(record)
+                    break
+            # Check if the query matches any part of the name
+            if query.lower() in record.name.value.lower():
+                if record not in results:
+                    results.append(record)
+        return results
 
     def add_record(self, record):
         self.data[record.name.value] = record
@@ -186,49 +233,45 @@ class AddressBook(UserDict):
             end_index = min(start_index + self.page_size, len(self.data))
             yield [self.data[key] for key in list(self.data.keys())[start_index:end_index]]
 
+def main():
+    address_book = AddressBook()
 
-address_book = AddressBook()
+    record1 = Record("John Doe", "1990-05-20")
+    record1.add_phone("1234567890")
+    record1.add_phone("9876543210")
+    address_book.add_record(record1)
 
-record1 = Record("John Doe", "1990-05-20")
-record1.add_phone("1234567890")
-record1.add_phone("9876543210")
-address_book.add_record(record1)
+    record2 = Record("Alice Smith", "1985-10-15")
+    record2.add_phone("5551234567")
+    address_book.add_record(record2)
 
-record2 = Record("Alice Smith", "1985-10-15")
-record2.add_phone("5551234567")
-address_book.add_record(record2)
+    record3 = Record("Emma Johnson", "1992-08-30")
+    record3.add_phone("1112223333")
+    address_book.add_record(record3)
 
+    record4 = Record("Michael Brown", "1980-03-14")
+    record4.add_phone("4445556666")
+    record4.add_phone("7778889999")
+    address_book.add_record(record4)
 
-record3 = Record("Emma Johnson", "1992-08-30")
-record3.add_phone("1112223333")
-address_book.add_record(record3)
+    record5 = Record("Sophia Garcia", "1995-11-25")
+    record5.add_phone("1231231234")
+    record5.add_phone("4564564567")
+    record5.add_phone("7897897890")
+    address_book.add_record(record5)
 
-record4 = Record("Michael Brown", "1980-03-14")
-record4.add_phone("4445556666")
-record4.add_phone("7778889999")
-address_book.add_record(record4)
+    record6 = Record("James Lee", "1988-06-10")
+    record6.add_phone("3213213210")
+    record6.add_phone("6546546540")
+    record6.add_phone("9879879870")
+    address_book.add_record(record6)
 
-record5 = Record("Sophia Garcia", "1995-11-25")
-record5.add_phone("1231231234")
-record5.add_phone("4564564567")
-record5.add_phone("7897897890")
-address_book.add_record(record5)
+    address_book.save_to_file('address_book.pkl')
+    address_book.load_from_file('address_book.pkl')
+    search_result = address_book.search_contact("John")
+    for record in search_result:
+        for phone in record.phones:
+            print(phone)
 
-record6 = Record("James Lee", "1988-06-10")
-record6.add_phone("3213213210")
-record6.add_phone("6546546540")
-record6.add_phone("9879879870")
-address_book.add_record(record6)
-
-
-for page_number, page_records in enumerate(address_book.paginate(), start=1):
-    print(f"Page {page_number}:")
-    for record in page_records:
-        print(record.name)
-
-
-print(f'Days to birtday: {record1.days_to_birthday()}')
-
-
-
-
+if __name__ == "__main__":
+    main()
